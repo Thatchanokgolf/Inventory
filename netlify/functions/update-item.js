@@ -50,9 +50,7 @@ exports.handler = async (event) => {
     // Log a quantity change (only if the quantity actually changed)
     if (diff !== 0) {
       let action;
-      if      (diff === 1)  action = 'increment';
-      else if (diff === -1) action = 'decrement';
-      else                  action = 'set_quantity';
+      action = 'set_quantity';
 
       await sql`
         INSERT INTO inventory_log (item_id, item_name, action, quantity_change, quantity_before, quantity_after, entered_by)

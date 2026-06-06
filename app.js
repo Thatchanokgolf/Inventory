@@ -95,10 +95,6 @@ function renderInventory(items) {
           <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Quantity</p>
           <p class="text-3xl font-bold ${qtyColor} mt-0.5">${quantity}</p>
         </div>
-        <div class="text-right">
-          <p class="text-xs text-gray-400 uppercase tracking-wide font-medium">Low limit</p>
-          <p class="text-sm font-semibold text-gray-500 mt-0.5">≤ ${limit}</p>
-        </div>
       </div>
     `;
     grid.appendChild(card);
@@ -192,41 +188,53 @@ function openModify(id, name, currentQty, currentLimit = 5) {
   document.getElementById('modify-item-id').value            = id;
   document.getElementById('modify-item-label').textContent   = name;
   document.getElementById('modify-current-qty').textContent  = currentQty;
-  document.getElementById('modify-new-qty').textContent      = currentQty;
-  document.getElementById('modify-exact-qty').value          = '';
+  document.getElementById('modify-new-qty').value            = currentQty;
   document.getElementById('modify-person').value             = '';
-  // Low-stock limit section
+  // Low-stock limit control (reset to display mode)
   document.getElementById('modify-current-limit').textContent = currentLimit;
   document.getElementById('modify-limit-input').value         = currentLimit;
   document.getElementById('modify-limit-section').classList.add('hidden');
+  document.getElementById('modify-limit-display').classList.remove('hidden');
   hideError('modify-error');
   openModal('modal-modify');
   setTimeout(() => document.getElementById('modify-person').focus(), 100);
 }
 
-// Toggle the low-stock limit editor inside the modify modal
+// Read the directly-typed New Quantity value
+function onNewQtyInput() {
+  const v = parseInt(document.getElementById('modify-new-qty').value, 10);
+  if (!isNaN(v) && v >= 0) pendingQty = v;
+}
+
+// Swap the limit button for an inline input
 function toggleLimitEditor() {
-  const section = document.getElementById('modify-limit-section');
-  section.classList.toggle('hidden');
-  if (!section.classList.contains('hidden')) {
-    document.getElementById('modify-limit-input').focus();
+  document.getElementById('modify-limit-display').classList.add('hidden');
+  document.getElementById('modify-limit-section').classList.remove('hidden');
+  const input = document.getElementById('modify-limit-input');
+  input.focus();
+  input.select();
+}
+
+// Commit the inline limit edit back to the button display
+function commitLimitEditor() {
+  const input = document.getElementById('modify-limit-input');
+  let v = parseInt(input.value, 10);
+  if (isNaN(v) || v < 0) {
+    v = parseInt(document.getElementById('modify-current-limit').textContent, 10) || 0;
+    input.value = v;
   }
+  document.getElementById('modify-current-limit').textContent = v;
+  document.getElementById('modify-limit-section').classList.add('hidden');
+  document.getElementById('modify-limit-display').classList.remove('hidden');
 }
 
 function quickChange(delta) {
-  pendingQty = Math.max(0, pendingQty + delta);
-  showModifyPreview();
-}
-
-function applyExact() {
-  const val = parseInt(document.getElementById('modify-exact-qty').value, 10);
-  if (isNaN(val) || val < 0) return;
-  pendingQty = val;
+  pendingQty = Math.max(0, (pendingQty ?? 0) + delta);
   showModifyPreview();
 }
 
 function showModifyPreview() {
-  document.getElementById('modify-new-qty').textContent = pendingQty;
+  document.getElementById('modify-new-qty').value = pendingQty;
 }
 
 async function submitModify(e) {
