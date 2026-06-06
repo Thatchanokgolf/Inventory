@@ -20,9 +20,11 @@ const MOCK_LOG = [
   { id: 1, item_name: 'Blue Pens',          action: 'add_item',     quantity_before: 0,  quantity_after: 42, quantity_change: null, entered_by: 'Alice', created_at: new Date(Date.now() - 86400000).toISOString() },
 ];
 
-// True when running without a backend (local file preview / non-Netlify host)
+// True only for the static HTML preview opened directly from disk (no backend).
+// Anything served over http(s) — netlify dev, deploy previews, production,
+// custom domains — uses the real Netlify Functions + Neon database.
 function isMockMode() {
-  return location.protocol === 'file:' || !location.hostname.includes('netlify');
+  return location.protocol === 'file:';
 }
 
 // ── Data fetching ──────────────────────────────────────────────────────────
@@ -35,8 +37,8 @@ async function loadInventory() {
     renderInventory(inventory);
     updateStats(inventory);
   } catch {
-    // Fall back to mock data when running as a local HTML file (no backend)
-    if (location.protocol === 'file:' || !location.hostname.includes('netlify')) {
+    // Fall back to mock data only in the static file preview (no backend)
+    if (isMockMode()) {
       inventory = MOCK_INVENTORY;
       renderInventory(inventory);
       updateStats(inventory);
@@ -257,7 +259,7 @@ async function openLog() {
   try {
     let logs;
     const res = await fetch('/.netlify/functions/get-log');
-    if (!res.ok && (location.protocol === 'file:' || !location.hostname.includes('netlify'))) {
+    if (!res.ok && isMockMode()) {
       logs = MOCK_LOG;
     } else {
       if (!res.ok) throw new Error();
