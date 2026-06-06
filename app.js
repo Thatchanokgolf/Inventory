@@ -1,0 +1,370 @@
+// ── State ──────────────────────────────────────────────────────────────────
+let inventory = [];
+let pendingQty = null; // qty staged in modify modal before saving
+
+// ── Boot ───────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded', loadInventory);
+
+// Mock data used when Netlify Functions are not available (local file preview)
+const MOCK_INVENTORY = [
+  { id: 1, item_name: 'Blue Pens',       quantity: 42,  updated_at: new Date().toISOString() },
+  { id: 2, item_name: 'A4 Paper Reams',  quantity: 5,   updated_at: new Date().toISOString() },
+  { id: 3, item_name: 'Stapler',         quantity: 0,   updated_at: new Date().toISOString() },
+  { id: 4, item_name: 'Sticky Notes',    quantity: 18,  updated_at: new Date().toISOString() },
+  { id: 5, item_name: 'Whiteboard Markers', quantity: 3, updated_at: new Date().toISOString() },
+  { id: 6, item_name: 'Scissors',        quantity: 7,   updated_at: new Date().toISOString() },
+];
+const MOCK_LOG = [
+  { id: 3, item_name: 'Whiteboard Markers', action: 'decrement',   quantity_before: 4,  quantity_after: 3,  quantity_change: -1, entered_by: 'Alice',   created_at: new Date(Date.now() - 3600000).toISOString() },
+  { id: 2, item_name: 'A4 Paper Reams',     action: 'set_quantity', quantity_before: 10, quantity_after: 5,  quantity_change: -5, entered_by: 'Bob',     created_at: new Date(Date.now() - 7200000).toISOString() },
+  { id: 1, item_name: 'Blue Pens',          action: 'add_item',     quantity_before: 0,  quantity_after: 42, quantity_change: null, entered_by: 'Alice', created_at: new Date(Date.now() - 86400000).toISOString() },
+];
+
+// ── Data fetching ──────────────────────────────────────────────────────────
+async function loadInventory() {
+  showState('loading');
+  try {
+    const res = await fetch('/.netlify/functions/get-inventory');
+    if (!res.ok) throw new Error();
+    inventory = await res.json();
+    renderInventory(inventory);
+    updateStats(inventory);
+  } catch {
+    // Fall back to mock data when running as a local HTML file (no backend)
+    if (location.protocol === 'file:' || !location.hostname.includes('netlify')) {
+      inventory = MOCK_INVENTORY;
+      renderInventory(inventory);
+      updateStats(inventory);
+    } else {
+      showState('error');
+    }
+  }
+}
+
+// ── Rendering ──────────────────────────────────────────────────────────────
+function renderInventory(items) {
+  const grid = document.getElementById('inventory-grid');
+  grid.innerHTML = '';
+
+  if (!items.length) {
+    showState('empty');
+    return;
+  }
+  showState('none');
+
+  items.forEach(item => {
+    const { id, item_name, quantity } = item;
+    const status = quantity === 0 ? 'out' : quantity <= 5 ? 'low' : 'ok';
+
+    const statusBadge = {
+      ok:  '<span class="inline-flex items-center gap-1 text-xs font-medium text-green-700 bg-green-100 rounded-full px-2.5 py-0.5">● In Stock</span>',
+      low: '<span class="inline-flex items-center gap-1 text-xs font-medium text-amber-700 bg-amber-100 rounded-full px-2.5 py-0.5">● Low Stock</span>',
+      out: '<span class="inline-flex items-center gap-1 text-xs font-medium text-red-700 bg-red-100 rounded-full px-2.5 py-0.5">● Out of Stock</span>',
+    }[status];
+
+    const qtyColor = {
+      ok:  'text-gray-900',
+      low: 'text-amber-600',
+      out: 'text-red-600',
+    }[status];
+
+    const card = document.createElement('div');
+    card.className = 'bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition group';
+    card.dataset.id = id;
+    card.dataset.name = item_name.toLowerCase();
+    card.dataset.status = status;
+    card.innerHTML = `
+      <div class="flex items-start justify-between mb-3">
+        <div class="flex-1 min-w-0">
+          <h3 class="font-semibold text-gray-900 truncate" title="${escHtml(item_name)}">${escHtml(item_name)}</h3>
+          <div class="mt-1">${statusBadge}</div>
+        </div>
+        <button onclick="openModify(${id}, '${escHtml(item_name)}', ${quantity})"
+          class="ml-3 shrink-0 opacity-0 group-hover:opacity-100 transition text-gray-400 hover:text-brand-600 border border-gray-200 hover:border-brand-300 rounded-lg p-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+          </svg>
+        </button>
+      </div>
+      <div class="flex items-end justify-between">
+        <div>
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Quantity</p>
+          <p class="text-3xl font-bold ${qtyColor} mt-0.5">${quantity}</p>
+        </div>
+        <button onclick="openModify(${id}, '${escHtml(item_name)}', ${quantity})"
+          class="text-xs font-medium text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-400 rounded-lg px-3 py-1.5 transition">
+          Update
+        </button>
+      </div>
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function updateStats(items) {
+  document.getElementById('stat-total').textContent = items.length;
+  document.getElementById('stat-low').textContent  = items.filter(i => i.quantity > 0 && i.quantity <= 5).length;
+  document.getElementById('stat-out').textContent  = items.filter(i => i.quantity === 0).length;
+}
+
+function showState(state) {
+  ['loading', 'empty', 'error'].forEach(s => {
+    const el = document.getElementById(`state-${s}`);
+    el.classList.toggle('hidden', s !== state);
+    el.classList.toggle('flex', s === state);
+  });
+}
+
+// ── Filter / Search ────────────────────────────────────────────────────────
+function filterInventory() {
+  const q      = document.getElementById('search-input').value.toLowerCase();
+  const status = document.getElementById('filter-status').value;
+  const cards  = document.querySelectorAll('#inventory-grid [data-id]');
+  let visible  = 0;
+
+  cards.forEach(card => {
+    const nameMatch   = card.dataset.name.includes(q);
+    const statusMatch = !status || card.dataset.status === status;
+    const show        = nameMatch && statusMatch;
+    card.classList.toggle('hidden', !show);
+    if (show) visible++;
+  });
+
+  document.getElementById('state-empty').classList.toggle('hidden', visible > 0 || !inventory.length);
+  document.getElementById('state-empty').classList.toggle('flex', visible === 0 && inventory.length > 0);
+}
+
+// ── Add Item Modal ─────────────────────────────────────────────────────────
+function openAddItem() {
+  document.getElementById('form-add').reset();
+  hideError('add-error');
+  openModal('modal-add');
+  setTimeout(() => document.getElementById('add-item-name').focus(), 100);
+}
+
+async function submitAddItem(e) {
+  e.preventDefault();
+  const name   = document.getElementById('add-item-name').value.trim();
+  const qty    = parseInt(document.getElementById('add-item-qty').value, 10);
+  const person = document.getElementById('add-item-person').value.trim();
+
+  if (!name || isNaN(qty) || qty < 0 || !person) {
+    showError('add-error', 'Please fill in all fields with valid values.');
+    return;
+  }
+
+  setLoading('add', true);
+  hideError('add-error');
+
+  try {
+    const res = await fetch('/.netlify/functions/add-item', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ item_name: name, quantity: qty, entered_by: person }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+
+    closeModal('modal-add');
+    showToast(`"${name}" added successfully.`);
+    await loadInventory();
+  } catch (err) {
+    showError('add-error', err.message);
+  } finally {
+    setLoading('add', false);
+  }
+}
+
+// ── Modify Item Modal ──────────────────────────────────────────────────────
+function openModify(id, name, currentQty) {
+  pendingQty = currentQty;
+  document.getElementById('modify-item-id').value   = id;
+  document.getElementById('modify-item-label').textContent = name;
+  document.getElementById('modify-current-qty').textContent = currentQty;
+  document.getElementById('modify-exact-qty').value = '';
+  document.getElementById('modify-person').value    = '';
+  document.getElementById('modify-preview').classList.add('hidden');
+  hideError('modify-error');
+  openModal('modal-modify');
+  setTimeout(() => document.getElementById('modify-person').focus(), 100);
+}
+
+function quickChange(delta) {
+  const current = parseInt(document.getElementById('modify-current-qty').textContent, 10);
+  pendingQty = Math.max(0, current + delta);
+  showModifyPreview();
+}
+
+function applyExact() {
+  const val = parseInt(document.getElementById('modify-exact-qty').value, 10);
+  if (isNaN(val) || val < 0) return;
+  pendingQty = val;
+  showModifyPreview();
+}
+
+function showModifyPreview() {
+  const preview = document.getElementById('modify-preview');
+  document.getElementById('modify-new-qty').textContent = pendingQty;
+  preview.classList.remove('hidden');
+}
+
+async function submitModify(e) {
+  e.preventDefault();
+  const id     = document.getElementById('modify-item-id').value;
+  const person = document.getElementById('modify-person').value.trim();
+  const name   = document.getElementById('modify-item-label').textContent;
+
+  if (pendingQty === null) {
+    showError('modify-error', 'Please set a new quantity first.');
+    return;
+  }
+  if (!person) {
+    showError('modify-error', 'Please enter your name.');
+    return;
+  }
+
+  const currentQty = parseInt(document.getElementById('modify-current-qty').textContent, 10);
+
+  setLoading('modify', true);
+  hideError('modify-error');
+
+  try {
+    const res = await fetch('/.netlify/functions/update-item', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id,
+        quantity_before: currentQty,
+        quantity_after: pendingQty,
+        entered_by: person,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+
+    closeModal('modal-modify');
+    showToast(`"${name}" updated to ${pendingQty}.`);
+    pendingQty = null;
+    await loadInventory();
+  } catch (err) {
+    showError('modify-error', err.message);
+  } finally {
+    setLoading('modify', false);
+  }
+}
+
+// ── Activity Log Modal ─────────────────────────────────────────────────────
+async function openLog() {
+  openModal('modal-log');
+  document.getElementById('log-loading').classList.remove('hidden');
+  document.getElementById('log-list').classList.add('hidden');
+  document.getElementById('log-empty').classList.add('hidden');
+  document.getElementById('log-error').classList.add('hidden');
+
+  try {
+    let logs;
+    const res = await fetch('/.netlify/functions/get-log');
+    if (!res.ok && (location.protocol === 'file:' || !location.hostname.includes('netlify'))) {
+      logs = MOCK_LOG;
+    } else {
+      if (!res.ok) throw new Error();
+      logs = await res.json();
+    }
+
+    document.getElementById('log-loading').classList.add('hidden');
+
+    if (!logs.length) {
+      document.getElementById('log-empty').classList.remove('hidden');
+      return;
+    }
+
+    const list = document.getElementById('log-list');
+    list.innerHTML = '';
+    logs.forEach(entry => {
+      const { item_name, action, quantity_before, quantity_after, quantity_change, entered_by, created_at } = entry;
+      const date = new Date(created_at).toLocaleString();
+
+      const actionLabel = {
+        add_item:    { text: 'Added item',     color: 'text-green-600  bg-green-50  border-green-200'  },
+        increment:   { text: '+1',             color: 'text-green-600  bg-green-50  border-green-200'  },
+        decrement:   { text: '−1',             color: 'text-red-600    bg-red-50    border-red-200'    },
+        set_quantity:{ text: 'Set quantity',   color: 'text-brand-600  bg-brand-50  border-brand-200'  },
+      }[action] || { text: action, color: 'text-gray-600 bg-gray-50 border-gray-200' };
+
+      const changeText = action === 'add_item'
+        ? `Initial qty: ${quantity_after}`
+        : `${quantity_before} → ${quantity_after}`;
+
+      list.insertAdjacentHTML('beforeend', `
+        <div class="py-3 flex items-start gap-3">
+          <span class="mt-0.5 shrink-0 text-xs font-semibold border rounded-full px-2.5 py-0.5 ${actionLabel.color}">${actionLabel.text}</span>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-gray-900 truncate">${escHtml(item_name)}</p>
+            <p class="text-xs text-gray-500 mt-0.5">${changeText} · by <strong>${escHtml(entered_by)}</strong></p>
+          </div>
+          <p class="shrink-0 text-xs text-gray-400">${date}</p>
+        </div>
+      `);
+    });
+    list.classList.remove('hidden');
+  } catch {
+    document.getElementById('log-loading').classList.add('hidden');
+    document.getElementById('log-error').classList.remove('hidden');
+  }
+}
+
+// ── Modal helpers ──────────────────────────────────────────────────────────
+function openModal(id) {
+  document.getElementById(id).classList.remove('hidden');
+  document.getElementById(id).classList.add('flex');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal(id) {
+  document.getElementById(id).classList.add('hidden');
+  document.getElementById(id).classList.remove('flex');
+  document.body.style.overflow = '';
+}
+
+// close modals with Escape
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    ['modal-add', 'modal-modify', 'modal-log'].forEach(id => {
+      if (!document.getElementById(id).classList.contains('hidden')) closeModal(id);
+    });
+  }
+});
+
+// ── UI helpers ─────────────────────────────────────────────────────────────
+function setLoading(prefix, loading) {
+  const btn     = document.getElementById(`${prefix}-submit`);
+  const label   = document.getElementById(`${prefix}-submit-label`);
+  const spinner = document.getElementById(`${prefix}-spinner`);
+  btn.disabled  = loading;
+  spinner.classList.toggle('hidden', !loading);
+  label.textContent = loading ? 'Saving…' : (prefix === 'add' ? 'Add Item' : 'Save Changes');
+}
+
+function showError(id, msg) {
+  const el = document.getElementById(id);
+  el.textContent = msg;
+  el.classList.remove('hidden');
+}
+
+function hideError(id) {
+  document.getElementById(id).classList.add('hidden');
+}
+
+let toastTimer;
+function showToast(msg) {
+  const toast = document.getElementById('toast');
+  document.getElementById('toast-msg').textContent = msg;
+  toast.classList.remove('hidden');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => toast.classList.add('hidden'), 3500);
+}
+
+function escHtml(str) {
+  return String(str).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}

@@ -1,0 +1,14 @@
+{
+  "name": "inventory-monitor",
+  "version": "1.0.0",
+  "description": "Inventory monitoring webapp with Netlify Functions and Neon PostgreSQL",
+  "scripts": {
+    "dev": "netlify dev"
+  },
+  "dependencies": {
+    "@neondatabase/serverless": "^0.10.4"
+  },
+  "devDependencies": {
+    "netlify-cli": "^17.0.0"
+  }
+}

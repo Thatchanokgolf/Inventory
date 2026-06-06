@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Inventory Monitor</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            brand: { 50: '#f0f9ff', 100: '#e0f2fe', 500: '#0ea5e9', 600: '#0284c7', 700: '#0369a1' }
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+  <!-- Header -->
+  <header class="bg-white border-b border-gray-200 shadow-sm sticky top-0 z-10">
+    <div class="max-w-5xl mx-auto px-4 py-4 flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center">
+          <svg class="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+          </svg>
+        </div>
+        <h1 class="text-xl font-semibold text-gray-900">Inventory Monitor</h1>
+      </div>
+      <div class="flex items-center gap-2">
+        <button onclick="openLog()"
+          class="text-sm text-gray-600 hover:text-gray-900 border border-gray-300 rounded-lg px-3 py-2 hover:bg-gray-50 transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+          </svg>
+          Activity Log
+        </button>
+        <button onclick="openAddItem()"
+          class="text-sm font-medium bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2 transition flex items-center gap-1.5">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+          </svg>
+          Add Item
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main content -->
+  <main class="max-w-5xl mx-auto px-4 py-8">
+
+    <!-- Stats bar -->
+    <div class="grid grid-cols-3 gap-4 mb-8">
+      <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Total Items</p>
+        <p id="stat-total" class="text-2xl font-bold text-gray-900 mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Low Stock</p>
+        <p id="stat-low" class="text-2xl font-bold text-amber-500 mt-1">—</p>
+      </div>
+      <div class="bg-white rounded-xl border border-gray-200 p-4">
+        <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Out of Stock</p>
+        <p id="stat-out" class="text-2xl font-bold text-red-500 mt-1">—</p>
+      </div>
+    </div>
+
+    <!-- Search -->
+    <div class="mb-4 flex items-center gap-2">
+      <div class="relative flex-1">
+        <svg class="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+        </svg>
+        <input id="search-input" type="text" placeholder="Search items…"
+          oninput="filterInventory()"
+          class="w-full pl-9 pr-4 py-2.5 text-sm border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent" />
+      </div>
+      <select id="filter-status" onchange="filterInventory()"
+        class="text-sm border border-gray-300 rounded-lg px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-brand-500 bg-white">
+        <option value="">All Status</option>
+        <option value="ok">In Stock</option>
+        <option value="low">Low Stock (≤5)</option>
+        <option value="out">Out of Stock</option>
+      </select>
+    </div>
+
+    <!-- Inventory grid -->
+    <div id="inventory-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      <!-- populated by JS -->
+    </div>
+
+    <!-- Empty / loading states -->
+    <div id="state-loading" class="hidden py-24 flex flex-col items-center gap-3 text-gray-400">
+      <svg class="w-8 h-8 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+      </svg>
+      <p class="text-sm">Loading inventory…</p>
+    </div>
+    <div id="state-empty" class="hidden py-24 flex flex-col items-center gap-3 text-gray-400">
+      <svg class="w-12 h-12" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10" />
+      </svg>
+      <p class="font-medium">No items yet</p>
+      <p class="text-sm">Click <strong>Add Item</strong> to get started.</p>
+    </div>
+    <div id="state-error" class="hidden py-16 flex flex-col items-center gap-3 text-red-400">
+      <svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+      </svg>
+      <p class="font-medium">Failed to load inventory</p>
+      <button onclick="loadInventory()" class="text-sm text-brand-600 hover:underline">Try again</button>
+    </div>
+  </main>
+
+  <!-- ── ADD ITEM MODAL ───────────────────────────────────────────── -->
+  <div id="modal-add" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal('modal-add')"></div>
+    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
+      <div class="flex items-center justify-between mb-5">
+        <h2 class="text-lg font-semibold text-gray-900">Add New Item</h2>
+        <button onclick="closeModal('modal-add')" class="text-gray-400 hover:text-gray-600 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <form id="form-add" onsubmit="submitAddItem(event)" novalidate>
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Item Name <span class="text-red-500">*</span></label>
+            <input id="add-item-name" type="text" placeholder="e.g. Blue Pens"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" required />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Initial Quantity <span class="text-red-500">*</span></label>
+            <input id="add-item-qty" type="number" min="0" placeholder="0"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" required />
+          </div>
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Your Name <span class="text-red-500">*</span></label>
+            <input id="add-item-person" type="text" placeholder="e.g. Alice"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" required />
+          </div>
+        </div>
+        <div id="add-error" class="hidden mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+        <div class="flex gap-3 mt-6">
+          <button type="button" onclick="closeModal('modal-add')"
+            class="flex-1 border border-gray-300 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+            Cancel
+          </button>
+          <button type="submit" id="add-submit"
+            class="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2.5 text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            <span id="add-submit-label">Add Item</span>
+            <svg id="add-spinner" class="hidden w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── MODIFY ITEM MODAL ──────────────────────────────────────────── -->
+  <div id="modal-modify" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal('modal-modify')"></div>
+    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
+      <div class="flex items-center justify-between mb-5">
+        <div>
+          <h2 class="text-lg font-semibold text-gray-900">Modify Quantity</h2>
+          <p id="modify-item-label" class="text-sm text-gray-500 mt-0.5"></p>
+        </div>
+        <button onclick="closeModal('modal-modify')" class="text-gray-400 hover:text-gray-600 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <form id="form-modify" onsubmit="submitModify(event)" novalidate>
+        <input type="hidden" id="modify-item-id" />
+        <!-- Current qty display -->
+        <div class="bg-gray-50 rounded-xl p-4 mb-4 text-center">
+          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Current Quantity</p>
+          <p id="modify-current-qty" class="text-3xl font-bold text-gray-900 mt-1">—</p>
+        </div>
+
+        <!-- Quick actions -->
+        <p class="text-sm font-medium text-gray-700 mb-2">Quick Actions</p>
+        <div class="grid grid-cols-2 gap-2 mb-4">
+          <button type="button" onclick="quickChange(-1)"
+            class="flex items-center justify-center gap-2 border-2 border-gray-200 hover:border-red-400 hover:bg-red-50 text-gray-700 hover:text-red-600 rounded-xl px-4 py-3 text-sm font-medium transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4" />
+            </svg>
+            Minus 1
+          </button>
+          <button type="button" onclick="quickChange(1)"
+            class="flex items-center justify-center gap-2 border-2 border-gray-200 hover:border-green-400 hover:bg-green-50 text-gray-700 hover:text-green-600 rounded-xl px-4 py-3 text-sm font-medium transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
+            </svg>
+            Plus 1
+          </button>
+        </div>
+
+        <!-- Manual set -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Set Exact Quantity</label>
+            <div class="flex gap-2">
+              <input id="modify-exact-qty" type="number" min="0" placeholder="Enter new quantity"
+                class="flex-1 border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+              <button type="button" onclick="applyExact()"
+                class="border border-gray-300 hover:bg-gray-50 text-gray-700 rounded-lg px-3 py-2.5 text-sm font-medium transition">
+                Apply
+              </button>
+            </div>
+          </div>
+
+          <!-- New qty preview -->
+          <div id="modify-preview" class="hidden bg-brand-50 border border-brand-200 rounded-xl p-3 text-center">
+            <p class="text-xs text-brand-600 font-medium uppercase tracking-wide">New Quantity</p>
+            <p id="modify-new-qty" class="text-2xl font-bold text-brand-700 mt-0.5">—</p>
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Your Name <span class="text-red-500">*</span></label>
+            <input id="modify-person" type="text" placeholder="e.g. Bob"
+              class="w-full border border-gray-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" required />
+          </div>
+        </div>
+
+        <div id="modify-error" class="hidden mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+        <div class="flex gap-3 mt-6">
+          <button type="button" onclick="closeModal('modal-modify')"
+            class="flex-1 border border-gray-300 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+            Cancel
+          </button>
+          <button type="submit" id="modify-submit"
+            class="flex-1 bg-brand-600 hover:bg-brand-700 text-white rounded-lg px-4 py-2.5 text-sm font-medium transition disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+            <span id="modify-submit-label">Save Changes</span>
+            <svg id="modify-spinner" class="hidden w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── ACTIVITY LOG MODAL ──────────────────────────────────────────── -->
+  <div id="modal-log" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal('modal-log')"></div>
+    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-2xl p-6 animate-fade-in max-h-[85vh] flex flex-col">
+      <div class="flex items-center justify-between mb-4 shrink-0">
+        <h2 class="text-lg font-semibold text-gray-900">Activity Log</h2>
+        <button onclick="closeModal('modal-log')" class="text-gray-400 hover:text-gray-600 transition">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div id="log-content" class="overflow-y-auto flex-1 -mx-6 px-6">
+        <div id="log-loading" class="py-12 flex flex-col items-center gap-2 text-gray-400">
+          <svg class="w-6 h-6 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+          <p class="text-sm">Loading…</p>
+        </div>
+        <div id="log-list" class="hidden divide-y divide-gray-100"></div>
+        <div id="log-empty" class="hidden py-12 text-center text-gray-400 text-sm">No activity yet.</div>
+        <div id="log-error" class="hidden py-12 text-center text-red-400 text-sm">Failed to load log.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="hidden fixed bottom-6 right-6 z-[100] bg-gray-900 text-white text-sm rounded-xl px-4 py-3 shadow-lg max-w-xs transition-all duration-300">
+    <span id="toast-msg"></span>
+  </div>
+
+  <style>
+    @keyframes fade-in { from { opacity: 0; transform: scale(0.96) translateY(8px); } to { opacity: 1; transform: scale(1) translateY(0); } }
+    .animate-fade-in { animation: fade-in 0.18s ease-out; }
+  </style>
+
+  <script src="app.js"></script>
+</body>
+</html>
