@@ -20,6 +20,11 @@ const MOCK_LOG = [
   { id: 1, item_name: 'Blue Pens',          action: 'add_item',     quantity_before: 0,  quantity_after: 42, quantity_change: null, entered_by: 'Alice', created_at: new Date(Date.now() - 86400000).toISOString() },
 ];
 
+// True when running without a backend (local file preview / non-Netlify host)
+function isMockMode() {
+  return location.protocol === 'file:' || !location.hostname.includes('netlify');
+}
+
 // ── Data fetching ──────────────────────────────────────────────────────────
 async function loadInventory() {
   showState('loading');
@@ -69,33 +74,23 @@ function renderInventory(items) {
     }[status];
 
     const card = document.createElement('div');
-    card.className = 'bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md transition group';
+    card.className = 'bg-white border border-gray-200 rounded-2xl p-5 hover:shadow-md hover:border-brand-300 transition group cursor-pointer';
     card.dataset.id = id;
     card.dataset.name = item_name.toLowerCase();
     card.dataset.status = status;
+    card.onclick = () => openModify(id, item_name, quantity);
     card.innerHTML = `
       <div class="flex items-start justify-between mb-3">
         <div class="flex-1 min-w-0">
           <h3 class="font-semibold text-gray-900 truncate" title="${escHtml(item_name)}">${escHtml(item_name)}</h3>
           <div class="mt-1">${statusBadge}</div>
         </div>
-        <button onclick="openModify(${id}, '${escHtml(item_name)}', ${quantity})"
-          class="ml-3 shrink-0 opacity-0 group-hover:opacity-100 transition text-gray-400 hover:text-brand-600 border border-gray-200 hover:border-brand-300 rounded-lg p-1.5">
-          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-          </svg>
-        </button>
       </div>
       <div class="flex items-end justify-between">
         <div>
           <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Quantity</p>
           <p class="text-3xl font-bold ${qtyColor} mt-0.5">${quantity}</p>
         </div>
-        <button onclick="openModify(${id}, '${escHtml(item_name)}', ${quantity})"
-          class="text-xs font-medium text-brand-600 hover:text-brand-700 border border-brand-200 hover:border-brand-400 rounded-lg px-3 py-1.5 transition">
-          Update
-        </button>
       </div>
     `;
     grid.appendChild(card);
@@ -179,20 +174,19 @@ async function submitAddItem(e) {
 // ── Modify Item Modal ──────────────────────────────────────────────────────
 function openModify(id, name, currentQty) {
   pendingQty = currentQty;
-  document.getElementById('modify-item-id').value   = id;
-  document.getElementById('modify-item-label').textContent = name;
-  document.getElementById('modify-current-qty').textContent = currentQty;
-  document.getElementById('modify-exact-qty').value = '';
-  document.getElementById('modify-person').value    = '';
-  document.getElementById('modify-preview').classList.add('hidden');
+  document.getElementById('modify-item-id').value            = id;
+  document.getElementById('modify-item-label').textContent   = name;
+  document.getElementById('modify-current-qty').textContent  = currentQty;
+  document.getElementById('modify-new-qty').textContent      = currentQty;
+  document.getElementById('modify-exact-qty').value          = '';
+  document.getElementById('modify-person').value             = '';
   hideError('modify-error');
   openModal('modal-modify');
   setTimeout(() => document.getElementById('modify-person').focus(), 100);
 }
 
 function quickChange(delta) {
-  const current = parseInt(document.getElementById('modify-current-qty').textContent, 10);
-  pendingQty = Math.max(0, current + delta);
+  pendingQty = Math.max(0, pendingQty + delta);
   showModifyPreview();
 }
 
@@ -204,9 +198,7 @@ function applyExact() {
 }
 
 function showModifyPreview() {
-  const preview = document.getElementById('modify-preview');
   document.getElementById('modify-new-qty').textContent = pendingQty;
-  preview.classList.remove('hidden');
 }
 
 async function submitModify(e) {
@@ -290,6 +282,7 @@ async function openLog() {
         increment:   { text: '+1',             color: 'text-green-600  bg-green-50  border-green-200'  },
         decrement:   { text: '−1',             color: 'text-red-600    bg-red-50    border-red-200'    },
         set_quantity:{ text: 'Set quantity',   color: 'text-brand-600  bg-brand-50  border-brand-200'  },
+      delete_item: { text: 'DELETED',        color: 'text-red-700    bg-red-100   border-red-300'    },
       }[action] || { text: action, color: 'text-gray-600 bg-gray-50 border-gray-200' };
 
       const changeText = action === 'add_item'
@@ -311,6 +304,81 @@ async function openLog() {
   } catch {
     document.getElementById('log-loading').classList.add('hidden');
     document.getElementById('log-error').classList.remove('hidden');
+  }
+}
+
+// ── Delete Item Modal ──────────────────────────────────────────────────────
+function openDeleteFromModify() {
+  const id   = document.getElementById('modify-item-id').value;
+  const name = document.getElementById('modify-item-label').textContent;
+  closeModal('modal-modify');
+  openDelete(id, name);
+}
+
+function openDelete(id, name) {
+  document.getElementById('delete-item-id').value = id;
+  document.getElementById('delete-item-label').textContent = name;
+  document.getElementById('delete-person').value = '';
+  document.getElementById('delete-confirm-text').value = '';
+  document.getElementById('delete-submit').disabled = true;
+  hideError('delete-error');
+  openModal('modal-delete');
+  setTimeout(() => document.getElementById('delete-person').focus(), 100);
+}
+
+function validateDeleteConfirm() {
+  const typed = document.getElementById('delete-confirm-text').value;
+  document.getElementById('delete-submit').disabled = typed !== 'DELETE';
+}
+
+async function submitDelete() {
+  const id     = document.getElementById('delete-item-id').value;
+  const person = document.getElementById('delete-person').value.trim();
+  const name   = document.getElementById('delete-item-label').textContent;
+
+  if (!person) { showError('delete-error', 'Please enter your name.'); return; }
+
+  const btn     = document.getElementById('delete-submit');
+  const label   = document.getElementById('delete-submit-label');
+  const spinner = document.getElementById('delete-spinner');
+  btn.disabled  = true;
+  label.textContent = 'DELETING…';
+  spinner.classList.remove('hidden');
+  hideError('delete-error');
+
+  try {
+    let res;
+    try {
+      res = await fetch('/.netlify/functions/delete-item', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, entered_by: person }),
+      });
+    } catch {
+      res = null; // network failure (e.g. local preview with no backend)
+    }
+
+    // Mock mode: no backend available in local file preview
+    if (!res || (!res.ok && isMockMode())) {
+      inventory = inventory.filter(i => String(i.id) !== String(id));
+      closeModal('modal-delete');
+      showToast(`"${name}" deleted.`);
+      renderInventory(inventory);
+      updateStats(inventory);
+      return;
+    }
+
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+
+    closeModal('modal-delete');
+    showToast(`"${name}" deleted.`);
+    await loadInventory();
+  } catch (err) {
+    showError('delete-error', err.message);
+    btn.disabled = false;
+    label.textContent = 'DELETE ITEM';
+    spinner.classList.add('hidden');
   }
 }
 

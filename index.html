@@ -186,29 +186,27 @@
       </div>
       <form id="form-modify" onsubmit="submitModify(event)" novalidate>
         <input type="hidden" id="modify-item-id" />
-        <!-- Current qty display -->
-        <div class="bg-gray-50 rounded-xl p-4 mb-4 text-center">
-          <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Current Quantity</p>
-          <p id="modify-current-qty" class="text-3xl font-bold text-gray-900 mt-1">—</p>
-        </div>
 
-        <!-- Quick actions -->
-        <p class="text-sm font-medium text-gray-700 mb-2">Quick Actions</p>
-        <div class="grid grid-cols-2 gap-2 mb-4">
-          <button type="button" onclick="quickChange(-1)"
-            class="flex items-center justify-center gap-2 border-2 border-gray-200 hover:border-red-400 hover:bg-red-50 text-gray-700 hover:text-red-600 rounded-xl px-4 py-3 text-sm font-medium transition">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M20 12H4" />
-            </svg>
-            Minus 1
-          </button>
-          <button type="button" onclick="quickChange(1)"
-            class="flex items-center justify-center gap-2 border-2 border-gray-200 hover:border-green-400 hover:bg-green-50 text-gray-700 hover:text-green-600 rounded-xl px-4 py-3 text-sm font-medium transition">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 4v16m8-8H4" />
-            </svg>
-            Plus 1
-          </button>
+        <!-- Current → New quantity display -->
+        <div class="grid grid-cols-2 gap-3 mb-5">
+          <div class="bg-gray-50 rounded-xl p-4 text-center">
+            <p class="text-xs text-gray-500 uppercase tracking-wide font-medium">Current</p>
+            <p id="modify-current-qty" class="text-3xl font-bold text-gray-900 mt-1">—</p>
+          </div>
+          <div class="bg-brand-50 border border-brand-200 rounded-xl p-4 text-center">
+            <p class="text-xs text-brand-600 uppercase tracking-wide font-medium">New</p>
+            <div class="flex items-center justify-center gap-2 mt-1">
+              <button type="button" onclick="quickChange(-1)"
+                class="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-red-300 text-red-600 hover:bg-red-600 hover:text-white hover:border-red-600 text-sm font-bold transition shrink-0">
+                −1
+              </button>
+              <p id="modify-new-qty" class="text-3xl font-bold text-brand-700 min-w-[2ch] text-center">—</p>
+              <button type="button" onclick="quickChange(1)"
+                class="w-7 h-7 flex items-center justify-center rounded-lg bg-white border border-green-300 text-green-600 hover:bg-green-600 hover:text-white hover:border-green-600 text-sm font-bold transition shrink-0">
+                +1
+              </button>
+            </div>
+          </div>
         </div>
 
         <!-- Manual set -->
@@ -224,13 +222,6 @@
               </button>
             </div>
           </div>
-
-          <!-- New qty preview -->
-          <div id="modify-preview" class="hidden bg-brand-50 border border-brand-200 rounded-xl p-3 text-center">
-            <p class="text-xs text-brand-600 font-medium uppercase tracking-wide">New Quantity</p>
-            <p id="modify-new-qty" class="text-2xl font-bold text-brand-700 mt-0.5">—</p>
-          </div>
-
           <div>
             <label class="block text-sm font-medium text-gray-700 mb-1">Your Name <span class="text-red-500">*</span></label>
             <input id="modify-person" type="text" placeholder="e.g. Bob"
@@ -251,6 +242,19 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
+          </button>
+        </div>
+
+        <!-- Delete section -->
+        <div class="mt-5 pt-4 border-t border-gray-200">
+          <button type="button" id="modify-delete-btn"
+            onclick="openDeleteFromModify()"
+            class="w-full flex items-center justify-center gap-2 text-sm font-black uppercase tracking-widest text-red-600 hover:text-white hover:bg-red-600 border-2 border-red-400 hover:border-red-600 rounded-xl px-4 py-2.5 transition">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5"
+                d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+            </svg>
+            ⚠ DELETE THIS ITEM PERMANENTLY ⚠
           </button>
         </div>
       </form>
@@ -280,6 +284,64 @@
         <div id="log-list" class="hidden divide-y divide-gray-100"></div>
         <div id="log-empty" class="hidden py-12 text-center text-gray-400 text-sm">No activity yet.</div>
         <div id="log-error" class="hidden py-12 text-center text-red-400 text-sm">Failed to load log.</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── DELETE CONFIRM MODAL ──────────────────────────────────────────── -->
+  <div id="modal-delete" class="hidden fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40 backdrop-blur-sm" onclick="closeModal('modal-delete')"></div>
+    <div class="relative bg-white rounded-2xl shadow-xl w-full max-w-md p-6 animate-fade-in">
+      <!-- Red warning header -->
+      <div class="flex flex-col items-center text-center mb-6">
+        <div class="w-14 h-14 rounded-full bg-red-100 flex items-center justify-center mb-4">
+          <svg class="w-7 h-7 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+          </svg>
+        </div>
+        <h2 class="text-xl font-black text-red-600 uppercase tracking-wide">WARNING: DELETE ITEM</h2>
+        <p class="text-sm text-gray-500 mt-2">THIS ACTION CANNOT BE UNDONE.</p>
+        <p class="mt-3 text-sm text-gray-700">You are about to permanently delete:</p>
+        <p id="delete-item-label" class="mt-1 text-base font-bold text-gray-900 bg-red-50 border border-red-200 rounded-lg px-4 py-2 w-full"></p>
+      </div>
+
+      <div class="bg-red-50 border border-red-300 rounded-xl px-4 py-3 mb-5 text-center">
+        <p class="text-xs font-black text-red-700 uppercase tracking-widest">⚠ ALL STOCK DATA WILL BE PERMANENTLY LOST ⚠</p>
+      </div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Your Name <span class="text-red-500">*</span></label>
+          <input id="delete-person" type="text" placeholder="Enter your name to confirm"
+            class="w-full border border-red-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">
+            Type <span class="font-mono font-bold text-red-600">DELETE</span> to confirm <span class="text-red-500">*</span>
+          </label>
+          <input id="delete-confirm-text" type="text" placeholder='Type "DELETE" here'
+            oninput="validateDeleteConfirm()"
+            class="w-full border border-red-300 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+        </div>
+      </div>
+
+      <input type="hidden" id="delete-item-id" />
+      <div id="delete-error" class="hidden mt-3 text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2"></div>
+
+      <div class="flex gap-3 mt-6">
+        <button type="button" onclick="closeModal('modal-delete')"
+          class="flex-1 border border-gray-300 text-gray-700 rounded-lg px-4 py-2.5 text-sm font-medium hover:bg-gray-50 transition">
+          CANCEL
+        </button>
+        <button id="delete-submit" type="button" onclick="submitDelete()" disabled
+          class="flex-1 bg-red-600 hover:bg-red-700 text-white rounded-lg px-4 py-2.5 text-sm font-black uppercase tracking-wide transition disabled:opacity-40 disabled:cursor-not-allowed flex items-center justify-center gap-2">
+          <span id="delete-submit-label">DELETE ITEM</span>
+          <svg id="delete-spinner" class="hidden w-4 h-4 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+          </svg>
+        </button>
       </div>
     </div>
   </div>
