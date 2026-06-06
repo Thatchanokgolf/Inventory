@@ -13,9 +13,14 @@ exports.handler = async (event) => {
   }
 
   const { item_name, quantity, entered_by } = body;
+  // Optional low-stock limit; defaults to 5 when not provided
+  const lowStockLimit = body.low_stock_limit == null ? 5 : Number(body.low_stock_limit);
 
   if (!item_name?.trim() || quantity == null || isNaN(quantity) || quantity < 0 || !entered_by?.trim()) {
     return { statusCode: 400, body: JSON.stringify({ error: 'item_name, quantity (≥0), and entered_by are required.' }) };
+  }
+  if (isNaN(lowStockLimit) || lowStockLimit < 0) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'low_stock_limit must be 0 or greater.' }) };
   }
 
   const sql = neon(process.env.DATABASE_URL);
@@ -23,9 +28,9 @@ exports.handler = async (event) => {
   try {
     // Insert into inventory (fail if duplicate name)
     const [item] = await sql`
-      INSERT INTO inventory (item_name, quantity)
-      VALUES (${item_name.trim()}, ${quantity})
-      RETURNING id, item_name, quantity
+      INSERT INTO inventory (item_name, quantity, low_stock_limit)
+      VALUES (${item_name.trim()}, ${quantity}, ${lowStockLimit})
+      RETURNING id, item_name, quantity, low_stock_limit
     `;
 
     // Log the action

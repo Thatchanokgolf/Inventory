@@ -13,38 +13,60 @@ exports.handler = async (event) => {
   }
 
   const { id, quantity_before, quantity_after, entered_by } = body;
+  // Optional: change the low-stock limit in the same request
+  const newLimit = body.low_stock_limit == null ? null : Number(body.low_stock_limit);
 
   if (!id || quantity_before == null || quantity_after == null || quantity_after < 0 || !entered_by?.trim()) {
     return { statusCode: 400, body: JSON.stringify({ error: 'id, quantity_before, quantity_after (≥0), and entered_by are required.' }) };
+  }
+  if (newLimit !== null && (isNaN(newLimit) || newLimit < 0)) {
+    return { statusCode: 400, body: JSON.stringify({ error: 'low_stock_limit must be 0 or greater.' }) };
   }
 
   const sql = neon(process.env.DATABASE_URL);
 
   try {
-    // Update inventory summary table
-    const [item] = await sql`
-      UPDATE inventory
-      SET quantity = ${quantity_after}, updated_at = NOW()
-      WHERE id = ${id}
-      RETURNING id, item_name, quantity
+    // Read the current row so we know the existing limit
+    const [current] = await sql`
+      SELECT id, item_name, quantity, low_stock_limit FROM inventory WHERE id = ${id}
     `;
-
-    if (!item) {
+    if (!current) {
       return { statusCode: 404, body: JSON.stringify({ error: 'Item not found.' }) };
     }
 
-    // Determine action type for the log
-    const diff = quantity_after - quantity_before;
-    let action;
-    if      (diff === 1)  action = 'increment';
-    else if (diff === -1) action = 'decrement';
-    else                  action = 'set_quantity';
+    const finalLimit = newLimit === null ? current.low_stock_limit : newLimit;
 
-    // Log the action
-    await sql`
-      INSERT INTO inventory_log (item_id, item_name, action, quantity_change, quantity_before, quantity_after, entered_by)
-      VALUES (${item.id}, ${item.item_name}, ${action}, ${diff}, ${quantity_before}, ${quantity_after}, ${entered_by.trim()})
+    // Update inventory summary table (quantity + limit)
+    const [item] = await sql`
+      UPDATE inventory
+      SET quantity = ${quantity_after}, low_stock_limit = ${finalLimit}, updated_at = NOW()
+      WHERE id = ${id}
+      RETURNING id, item_name, quantity, low_stock_limit
     `;
+
+    const entered = entered_by.trim();
+    const diff = quantity_after - quantity_before;
+
+    // Log a quantity change (only if the quantity actually changed)
+    if (diff !== 0) {
+      let action;
+      if      (diff === 1)  action = 'increment';
+      else if (diff === -1) action = 'decrement';
+      else                  action = 'set_quantity';
+
+      await sql`
+        INSERT INTO inventory_log (item_id, item_name, action, quantity_change, quantity_before, quantity_after, entered_by)
+        VALUES (${item.id}, ${item.item_name}, ${action}, ${diff}, ${quantity_before}, ${quantity_after}, ${entered})
+      `;
+    }
+
+    // Log a limit change (only if the limit actually changed)
+    if (newLimit !== null && newLimit !== current.low_stock_limit) {
+      await sql`
+        INSERT INTO inventory_log (item_id, item_name, action, quantity_change, quantity_before, quantity_after, entered_by)
+        VALUES (${item.id}, ${item.item_name}, 'set_limit', ${newLimit - current.low_stock_limit}, ${current.low_stock_limit}, ${newLimit}, ${entered})
+      `;
+    }
 
     return {
       statusCode: 200,

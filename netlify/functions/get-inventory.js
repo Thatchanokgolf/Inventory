@@ -5,7 +5,7 @@ exports.handler = async () => {
 
   try {
     const rows = await sql`
-      SELECT id, item_name, quantity, updated_at
+      SELECT id, item_name, quantity, low_stock_limit, updated_at
       FROM inventory
       ORDER BY item_name ASC
     `;

@@ -2,11 +2,12 @@
 
 -- Table 1: Inventory summary — one row per item, always reflects current stock
 CREATE TABLE IF NOT EXISTS inventory (
-  id          SERIAL PRIMARY KEY,
-  item_name   VARCHAR(255) UNIQUE NOT NULL,
-  quantity    INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
-  created_at  TIMESTAMPTZ DEFAULT NOW(),
-  updated_at  TIMESTAMPTZ DEFAULT NOW()
+  id              SERIAL PRIMARY KEY,
+  item_name       VARCHAR(255) UNIQUE NOT NULL,
+  quantity        INTEGER NOT NULL DEFAULT 0 CHECK (quantity >= 0),
+  low_stock_limit INTEGER NOT NULL DEFAULT 5 CHECK (low_stock_limit >= 0),
+  created_at      TIMESTAMPTZ DEFAULT NOW(),
+  updated_at      TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Table 2: Transaction log — every change ever made, never mutated
@@ -14,7 +15,7 @@ CREATE TABLE IF NOT EXISTS inventory_log (
   id               SERIAL PRIMARY KEY,
   item_id          INTEGER REFERENCES inventory(id) ON DELETE SET NULL,
   item_name        VARCHAR(255) NOT NULL,
-  action           VARCHAR(50)  NOT NULL,   -- 'add_item' | 'increment' | 'decrement' | 'set_quantity'
+  action           VARCHAR(50)  NOT NULL,   -- 'add_item' | 'increment' | 'decrement' | 'set_quantity' | 'set_limit' | 'delete_item'
   quantity_change  INTEGER,                 -- signed delta (null for add_item)
   quantity_before  INTEGER NOT NULL,
   quantity_after   INTEGER NOT NULL,
